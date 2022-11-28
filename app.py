@@ -1,50 +1,71 @@
-from flask import Flask, render_template, redirect, request, flash, jsonify
-from flask_mysqldb import MySQL,MySQLdb #pip install flask-mysqldb https://github.com/alexferl/flask-mysqldb
- 
+from flask import Flask,render_template,request,flash,redirect,session
+from dbhelper import*
+
 app = Flask(__name__)
-       
-app.secret_key = "caircocoders-ednalan"
-       
-app.config['MYSQL_HOST'] = '127.0.0.1'
-app.config['MYSQL_USER'] = 'root'
-app.config['MYSQL_PASSWORD'] = ''
-app.config['MYSQL_DB'] = 'sfdb'
-app.config['MYSQL_CURSORCLASS'] = 'DictCursor'
-mysql = MySQL(app)
- 
-@app.route('/')
+app.secret_key="@#$klarke"
+
+@app.route("/savestudent",methods=['POST'])
+def savestudent():
+    idno: str = request.form["idno"]
+    name: str = request.form["name"]
+    course: str = request.form["course"]
+    level: str = request.form["level"]
+    
+    #
+    if idno!=None and name!=None:
+        okey: bool=addrecord('tblstudent',idno=idno,name=name,course=course,level=level)
+        if okey:
+            flash("New Student Added")
+            return redirect("/main")
+
+@app.route("/deletestudent")
+def deletestudent():
+    idnumber: str = request.args.get("idno")
+    okey: bool= deleterecord('tblstudent',idno=idnumber)
+    if okey:
+        flash("Student Deleted")
+        return redirect("/main")
+    else:
+        flash("Error Deleting Student")
+        return redirect("/main")
+
+@app.after_request
+def after_request(response):
+    response.headers["Cache-Control"]="no-chache,no-store,must-revalidate"
+    return response
+
+@app.route("/logout")
+def logout():
+    session.clear()
+    flash("Logged Out")
+    return redirect("/")
+
+@app.route("/main")
+def main():
+    if "logged_user" in session:
+        header: list=['idno','name','course','level','action']
+        stlist:list = getallrecord('tblstudent')
+        return render_template("main.html",headername='student list',studentlist=stlist,head=header)
+    else:
+        flash("Login Properly!")
+        return redirect("/")  
+
+@app.route("/login", methods=['POST'])
+def login():
+    uname: str=request.form["username"]
+    pword: str=request.form["password"]
+    user: dict=userlogin('users',username=uname,password=pword)
+    if user !=None:
+        session["logged_user"]=user["username"]
+        flash("Login Accepted")
+        return redirect("/main")
+    else:
+        flash("Login Failed")
+        return redirect("/")
+
+@app.route("/")
 def index():
-    cur = mysql.connection.cursor(MySQLdb.cursors.DictCursor)
-    result = cur.execute("SELECT * FROM tblstudent ORDER BY idno")
-    student = cur.fetchall()
-    return render_template('index.html', student=student)
- 
-@app.route("/ajax_add",methods=["POST","GET"])
-def ajax_add():
-    cursor = mysql.connection.cursor()
-    cur = mysql.connection.cursor(MySQLdb.cursors.DictCursor)
-    if request.method == 'POST':
-        txtidno = request.form['txtidno']
-        txtname = request.form['txtname']
-        txtcourse = request.form['txtcourse']
-        txtlevel = request.form['txtlevel']
-        print(txtname)
-        if txtidno == '':
-            msg = 'Please Input idno'  
-        elif txtname == '':
-           msg = 'Please Input name'  
-        elif txtcourse == '':
-           msg = 'Please Input course'  
-        elif txtlevel == '':
-           msg = 'Please Input level'
-        else:        
-            cur.execute("INSERT INTO tblstudent(idno,name,course,level) VALUES (%s,%s,%s,%s)",[txtidno,txtname,txtcourse,txtlevel])
-            mysql.connection.commit()       
-            cur.close()
-            msg = 'New record created successfully'   
-    return jsonify(msg)
- 
- 
-     
-if __name__ == "__main__":
-    app.run(debug=True)
+    return render_template("login.html",headername='user login')
+
+if __name__=="__main__":
+    app.run(host="0.0.0.0", debug=True)
